@@ -1,9 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 set(CMAKE_CXX_STANDARD 23)
 
-list(APPEND COMPILER_FLAGS
-    -Wall -Wextra -Werror
-)
 
 macro(propagate)
     foreach(_list ${ARGV})
@@ -11,32 +8,7 @@ macro(propagate)
     endforeach()
 endmacro()
 
-#if(WIN32)
-#    option(BUILD_SHARED_LIBS "" ON)
-#endif()
-#if(UNIX)
-#    option(BUILD_SHARED_LIBS "" OFF)
-#endif()
-
-project(mipt_c_lessons VERSION 0.1)
-
-add_subdirectory("projects")
-
-add_subdirectory("googletest" EXCLUDE_FROM_ALL)
-#add_subdirectory("benchmark" EXCLUDE_FROM_ALL)
-if(WIN32)
-    set_target_properties(gtest gtest_main gmock PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-endif()
-include(GoogleTest)
-
-
-option(USING_ONLY_STANDART "adds -Wpedantic and -DUSING_ONLY_STANDART" ON)
-
-if(USING_ONLY_STANDART)
-    list(APPEND COMPILER_FLAGS
-        -Wpedantic -DUSING_ONLY_STANDART
-    )
-endif()
+project(function_verification VERSION 0.1)
 
 foreach(_target ${MAIN_TARGETS})
     add_executable("program_${_target}")
@@ -51,28 +23,4 @@ foreach(_target ${MAIN_TARGETS})
     install(TARGETS "program_${_target}")
 endforeach()
 
-if(NOT ${TIME_06_01} STREQUAL "")    
-    set_property(TARGET "program_06.01" PROPERTY RULE_LAUNCH_COMPILE "${CMAKE_COMMAND} -E time")
-    set_property(TARGET "program_06.01" PROPERTY RULE_LAUNCH_LINK "${CMAKE_COMMAND} -E time")
-endif()
-
-if(NOT ${INCLUDE_ALL_LIBS} STREQUAL "")
-    target_compile_definitions("program_06.01" PRIVATE "INCLUDE_ALL")
-endif()
-
-enable_testing()
-
-foreach(_target ${MAIN_TARGETS})
-    add_executable("test_${_target}")
-    target_sources("test_${_target}" PRIVATE ${${_target}_HEADERS} ${${_target}_TEST_SOURCES})
-    target_include_directories("test_${_target}" PRIVATE ${${_target}_INCLUDEDIRS})
-    target_link_libraries("test_${_target}" ${${_target}_LIBS} GTest::gtest_main)
-    target_link_directories("test_${_target}" PRIVATE ${${_target}_LIBDIRS})
-    target_compile_options("test_${_target}" PRIVATE ${COMPILER_FLAGS} ${${_target}_COMPILE_OPTIONS})
-    if(${_target}_DEPS)
-        add_dependencies("test_${_target}" ${${_target}_DEPS})
-    endif()
-
-    gtest_discover_tests("test_${_target}" DISCOVERY_TIMEOUT 600 DISCOVERY_MODE PRE_TEST PROPERTIES TIMEOUT 600 LABELS "${_target}")
-endforeach()
 
