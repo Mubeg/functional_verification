@@ -52,10 +52,10 @@ void calc(const uint8_t in [], uint8_t out []){
 
 }
 
-int entry_point(void){
+int test_entry_point(void){
 
 	uint8_t out[2];
-	uint8_t in[4] = {1, 1, 1, 1, };
+	uint8_t in[4] = {1, 1, 1, 1};
 
 	calc(in, out);
 

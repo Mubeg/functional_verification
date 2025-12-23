@@ -1,17 +1,35 @@
-#include <iostream>
 
-int main()
-{
-	double f = 1.0;
-    long unsigned int a = 0, b = 0, i = 0;
 
-	while(1){
-		std::cin >> a;
-		std::cin >> b;
-        f = reinterpret_cast<double&>(a) * reinterpret_cast<double&>(b);
-        i = reinterpret_cast<long unsigned int&>(f);
-        std::cout << i << std::endl;
-	}
+#ifdef _WIN32
 
-	return 0;
+    #define LIBRARY_API __declspec(dllexport)
+#else
+  #define LIBRARY_API
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef USING_VPI
+    #define vpi_printf printf
+    #include <stdio.h>
+#else
+    #include <vpi_user.h>
+#endif
+
+
+LIBRARY_API long unsigned int c_etalon(long unsigned int a, long unsigned int b){
+    double f = 1.0;
+
+    f = reinterpret_cast<double&>(a) * reinterpret_cast<double&>(b);
+    long unsigned res = reinterpret_cast<long unsigned int&>(f);
+    vpi_printf("%.2e (%x) * %.2e (%x) = %.2e (%x)\n", a, a, b, b, res, res);
+    return res;
 }
+
+#ifdef __cplusplus
+}
+#endif
+
+
