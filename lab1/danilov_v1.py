@@ -87,7 +87,7 @@ def translate_schema(filename_input, filename_output):
 
     sorted_verticies = topological_sort(verticies, edges)
 
-    print(sorted_verticies)
+    # print(sorted_verticies)
 
     calc_array = []
     max_width = 1
@@ -181,7 +181,7 @@ def translate_schema(filename_input, filename_output):
 
     c_file.write("\n}\n")
 
-    c_file.write("\nint entry_point(void){\n\n")
+    c_file.write("\nint test_entry_point(void){\n\n")
 
     c_file.write(f"\tuint8_t out[{schema_outputs_n}];\n")
 
@@ -189,7 +189,7 @@ def translate_schema(filename_input, filename_output):
     c_file.write("{")
     for i in range(schema_inputs_n):
         c_file.write("1")
-        if i != schema_inputs_n:
+        if i != schema_inputs_n - 1:
             c_file.write(", ")
     c_file.write("};\n")
 
@@ -201,4 +201,11 @@ def translate_schema(filename_input, filename_output):
 
 
 if __name__ == "__main__":
-    translate_schema("in.json", "out.c")
+    import sys
+
+    input_file = "in.json"
+    output_file = "out.c"
+    if len(sys.argv) > 2:
+        input_file = sys.argv[1]
+        output_file = sys.argv[2]
+    translate_schema(input_file, output_file)
