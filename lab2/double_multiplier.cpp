@@ -20,11 +20,12 @@ extern "C" {
 
 
 LIBRARY_API long unsigned int c_etalon(long unsigned int a, long unsigned int b){
-    double f = 1.0;
+	double a_f = reinterpret_cast<double&>(a);
+	double b_f = reinterpret_cast<double&>(b);
 
-    f = reinterpret_cast<double&>(a) * reinterpret_cast<double&>(b);
-    long unsigned res = reinterpret_cast<long unsigned int&>(f);
-    vpi_printf("%.2e (%x) * %.2e (%x) = %.2e (%x)\n", a, a, b, b, res, res);
+    double res_f = a_f * b_f;
+    long unsigned res = reinterpret_cast<long unsigned int&>(res_f);
+    vpi_printf("%.2e (%lx) * %.2e (%lx) = %.2e (%lx)\n", a_f, a, b_f, b, res_f, res);
     return res;
 }
 

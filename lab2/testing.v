@@ -8,38 +8,44 @@ module top();
 reg clock;
 reg reset;
 
-longint unsigned a, b = 0;
-longint unsigned res = 0;
-longint unsigned etalon = 0;
+reg[63:0] a, b = 0;
+reg[63:0] res = 0;
+reg[63:0] etalon = 0;
+
+
+/*assign wire a_f = a;
+assign wire b_f = b;
+assign wire res_f = res;
+assign wire etalon_f = etalon;*/
 
 input clock;
 input reset;
 
-reg     [63:0] input_a;
-reg     input_a_stb;
-reg     input_a_ack;
+reg     [63:0] h_input_a;
+reg     h_input_a_stb;
+reg     h_input_a_ack;
 
-reg     [63:0] input_b;
-reg     input_b_stb;
-reg     input_b_ack;
+reg     [63:0] h_input_b;
+reg     h_input_b_stb;
+reg     h_input_b_ack;
 
-wire    [63:0] output_z;
-wire     output_z_stb;
-reg     output_z_ack;
+wire    [63:0] h_output_z;
+wire     h_output_z_stb;
+reg     h_output_z_ack;
 
 double_multiplier
 dut(
-    .input_a(input_a),
-    .input_b(input_b),
-    .input_a_stb(input_a_stb),
-    .input_b_stb(input_b_stb),
-    .output_z_ack(output_z_ack),
+    .input_a(h_input_a),
+    .input_b(h_input_b),
+    .input_a_stb(h_input_a_stb),
+    .input_b_stb(h_input_b_stb),
+    .output_z_ack(h_output_z_ack),
     .clk(clock),
     .rst(reset),
-    .output_z(output_z),
-    .output_z_stb(output_z_stb),
-    .input_a_ack(input_a_ack),
-    .input_b_ack(input_b_ack)
+    .output_z(h_output_z),
+    .output_z_stb(h_output_z_stb),
+    .input_a_ack(h_input_a_ack),
+    .input_b_ack(h_input_b_ack)
 
 );
 
@@ -49,7 +55,7 @@ initial begin
     #10
     reset = 0;
     #10
-    if ($value$plusargs("arg0=%d", a) && $value$plusargs("arg1=%d", b)) begin
+    if ($value$plusargs("arg0=%x", a) && $value$plusargs("arg1=%x", b)) begin
         perform_calculation_and_check(a, b);
     end
 //    else if ($test$plusargs("from_file")) begin
@@ -91,31 +97,43 @@ end
 
 task perform_calculation_and_check(longint unsigned a, longint unsigned b);
 
-    input_a = a;
-    input_a_stb = 1;
+    h_input_a = a;
+    h_input_a_stb = 1;
     forever begin
-        wait (input_a_ack == 1'b0);
+        if(h_input_a_ack == 1'b0) begin
+			break;
+		end
         @(posedge clock);
     end
-    input_a_stb = 0;
-    input_b = b;
-    input_b_stb = 1;
+    h_input_a_stb = 0;
+    h_input_b = b;
+    h_input_b_stb = 1;
+	#1
     forever begin
-        wait (input_b_ack == 1'b0);
+	    if(h_input_b_ack == 1'b0) begin
+			break;
+		end
         @(posedge clock);
     end
-    input_b_stb = 0;
+    h_input_b_stb = 0;
+    forever begin
+		if(h_output_z_stb == 1'b1) begin
+			break;
+		end
+        @(posedge clock);
+    end
 
-    forever begin
-        wait (output_z_stb == 1'b1);
-        @(posedge clock);
-    end
-    res = output_z;
-    output_z_ack = 1;
-
+    res = h_output_z;
+    h_output_z_ack = 1;
+	#1
+	h_output_z_ack = 0;
     etalon = c_etalon(a, b);
 
-    $display("%.2e (%x) * %.2e (%x) = %.2e (%x) vs %.2e (%x)\n", a, a, b, b, etalon, etalon, res, res);
+    $display("%.2e (%x) * %.2e (%x) = %.2e (%x) vs %.2e (%x)\n",
+	$bitstoreal(a), a,
+	$bitstoreal(b), b,
+	$bitstoreal(etalon), etalon,
+	$bitstoreal(res), res);
 
 endtask
 
