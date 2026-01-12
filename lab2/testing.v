@@ -8,7 +8,7 @@ module top();
 reg clock;
 reg reset;
 
-reg[63:0] a, b = 0;
+reg[63:0] a = 0, b = 0;
 reg[63:0] res = 0;
 reg[63:0] etalon = 0;
 
@@ -18,8 +18,8 @@ assign wire b_f = b;
 assign wire res_f = res;
 assign wire etalon_f = etalon;*/
 
-input clock;
-input reset;
+// input clock;
+// input reset;
 
 reg     [63:0] h_input_a;
 reg     h_input_a_stb;
@@ -32,6 +32,9 @@ reg     h_input_b_ack;
 wire    [63:0] h_output_z;
 wire     h_output_z_stb;
 reg     h_output_z_ack;
+
+integer fd = 0, random_n = 0;
+string filename = "";
 
 double_multiplier
 dut(
@@ -58,33 +61,31 @@ initial begin
     if ($value$plusargs("arg0=%x", a) && $value$plusargs("arg1=%x", b)) begin
         perform_calculation_and_check(a, b);
     end
-//    else if ($test$plusargs("from_file")) begin
-//        int fd = $fopen(filename, "r");
-//        if (fd == 0) begin
-//            $fatal(1, "Cannot open file '%s'", filename);
-//        end
+    else if ($value$plusargs("from_file=%s", filename)) begin
+        fd = $fopen(filename, "r");
+        if(fd == 0) begin
+            $display("Unable to open file %s", filename);
+        end
+        while(!$feof(fd)) begin
+            $fscanf(fd, " %x", a);
+            $fgetc(fd);
+            $fscanf(fd, " %x", b);
+            $fgetc(fd);
+            perform_calculation_and_check(a, b);
+        end
+        $fclose(fd);
 
-//        while (!$feof(fd)) begin
-//            void'($fgets(line, fd));
-//            if (line.len() == 0) continue; // пропускаем пустые строки
-
-//            // Разбиваем строку по пробелам/табуляциям
-//            args = line.split({" ", "\t"});
-
-//            // Преобразуем строки в числа
-//            for (int i = 0; i < args.size(); i++) begin
-//                void'($sscanf(args[i], "%d", arg_values[i]));
-//            end
-
-//            $display("File line: %s → values = %p", line, arg_values);
-
-//            // Здесь вызываем функцию/блок для вычисления с arg_values
-//            perform_calculation_and_check(a, b);
-//        end
-//    end
-//    else if ($test$plusargs("random_mode")) begin
-
-//    end
+    end
+    else if ($value$plusargs("random_mode=%d", random_n)) begin
+        while(random_n > 0) begin
+            a[31:0] = $random;
+            a[63:32] = $random;
+            b[31:0] = $random;
+            b[63:32] = $random;
+            perform_calculation_and_check(a, b);
+            random_n -= 1;
+        end
+    end
     $finish;
 end
 
@@ -96,7 +97,12 @@ end
 
 
 task perform_calculation_and_check(longint unsigned a, longint unsigned b);
-
+    forever begin
+        if(h_input_a_ack == 1'b1) begin
+			break;
+		end
+        @(posedge clock);
+    end
     h_input_a = a;
     h_input_a_stb = 1;
     forever begin
@@ -105,10 +111,17 @@ task perform_calculation_and_check(longint unsigned a, longint unsigned b);
 		end
         @(posedge clock);
     end
+
     h_input_a_stb = 0;
+
+    forever begin
+        if(h_input_b_ack == 1'b1) begin
+			break;
+		end
+        @(posedge clock);
+    end
     h_input_b = b;
     h_input_b_stb = 1;
-	#1
     forever begin
 	    if(h_input_b_ack == 1'b0) begin
 			break;
@@ -116,6 +129,7 @@ task perform_calculation_and_check(longint unsigned a, longint unsigned b);
         @(posedge clock);
     end
     h_input_b_stb = 0;
+
     forever begin
 		if(h_output_z_stb == 1'b1) begin
 			break;
