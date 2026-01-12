@@ -20,3 +20,4 @@ annotate:
 
 clean:
 	rm -rf obj_dir
+	rm -f ${COVERAGE_DATA}
