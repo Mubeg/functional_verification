@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-#ifndef USING_VPI
+#ifdef NOT_USING_VPI
     #define vpi_printf printf
     #include <stdio.h>
 #else
