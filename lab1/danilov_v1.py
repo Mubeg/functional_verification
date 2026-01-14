@@ -123,11 +123,15 @@ def translate_schema(filename_input, filename_output):
         output = schema_outputs[i]
         _output_pos = -1
         _output_num = -1
-        for j in range(len(output)):
-            if _from[j].isnumeric():
-                _output_pos = gates_numbers[output[0:j]]
-                _output_num = int(output[j:])
-                break
+        if not isinstance(output, int):
+            for j in range(len(output)):
+                if output[j].isnumeric():
+                    _output_pos = gates_numbers[output[0:j]]
+                    _output_num = int(output[j:])
+                    break
+        else:
+            _output_pos = int(output)
+            _output_num = 0
         outputs.append(f"out[{i}] = temp[{_output_pos}][{_output_num}]")
 
     c_file = open(filename_output, "w")
