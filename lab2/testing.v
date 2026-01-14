@@ -98,11 +98,19 @@ begin
 	timeout_counter = timeout_counter + 1;
 end
 
+task reset_timeout();
+	//$display("Here");
+	reset = 1;
+	#100
+	reset = 0;
+endtask
+
 
 task perform_calculation_and_check(longint unsigned a, longint unsigned b);
 	timeout_counter = 0;
     forever begin
 		if(timeout_counter > timeout_max) begin
+			reset_timeout();
 			return;
 		end
         if(h_input_a_ack == 1'b1) begin
@@ -114,6 +122,7 @@ task perform_calculation_and_check(longint unsigned a, longint unsigned b);
     h_input_a_stb = 1;
     forever begin
 		if(timeout_counter > timeout_max) begin
+			reset_timeout();
 			return;
 		end
         if(h_input_a_ack == 1'b0) begin
@@ -126,6 +135,7 @@ task perform_calculation_and_check(longint unsigned a, longint unsigned b);
 
     forever begin
 		if(timeout_counter > timeout_max) begin
+			reset_timeout();
 			return;
 		end
         if(h_input_b_ack == 1'b1) begin
@@ -137,6 +147,7 @@ task perform_calculation_and_check(longint unsigned a, longint unsigned b);
     h_input_b_stb = 1;
     forever begin
 		if(timeout_counter > timeout_max) begin
+			reset_timeout();
 			return;
 		end
 	    if(h_input_b_ack == 1'b0) begin
@@ -148,6 +159,7 @@ task perform_calculation_and_check(longint unsigned a, longint unsigned b);
 
     forever begin
 		if(timeout_counter > timeout_max) begin
+			reset_timeout();
 			return;
 		end
 		if(h_output_z_stb == 1'b1) begin
