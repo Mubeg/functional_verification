@@ -37,6 +37,7 @@ integer fd = 0, random_n = 0;
 string filename = "";
 integer timeout_counter=0;
 integer timeout_max = 5000;
+integer failed = 0;
 
 double_multiplier
 dut(
@@ -60,6 +61,7 @@ initial begin
     #10
     reset = 0;
     #10
+	failed = 0;
     if ($value$plusargs("arg0=%x", a) && $value$plusargs("arg1=%x", b)) begin
         perform_calculation_and_check(a, b);
     end
@@ -88,6 +90,21 @@ initial begin
             random_n -= 1;
         end
     end
+	if(failed == 0) begin
+		$display("\n\
+******************************************\n\
+*           TEST SUCCESSFULL             *\n\
+******************************************\n"
+				 );
+	end
+	else begin
+		$display("\n\
+******************************************\n\
+*             TEST FAILED                *\n\
+******************************************\n"
+				 );
+		$display("%d tests failed\n", failed);
+	end
     $finish;
 end
 
@@ -173,12 +190,18 @@ task perform_calculation_and_check(longint unsigned a, longint unsigned b);
 	#1
 	h_output_z_ack = 0;
     etalon = c_etalon(a, b);
+	
+	if(etalon != res) begin
+		failed = failed + 1;
+	end
 
-    $display("%.2e (%x) * %.2e (%x) = %.2e (%x) vs %.2e (%x)\n",
+    $display("%.2e (%x) * %.2e (%x) = %.2e (%x) vs %.2e (%x) %s",
 	$bitstoreal(a), a,
 	$bitstoreal(b), b,
 	$bitstoreal(etalon), etalon,
-	$bitstoreal(res), res);
+	$bitstoreal(res), res,
+	etalon != res ? "(failed)" : "");
+	
 
 endtask
 
