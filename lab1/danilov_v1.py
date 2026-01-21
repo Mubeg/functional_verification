@@ -109,6 +109,7 @@ def translate_schema(filename_input, filename_output):
             next_pos = sorted_verticies.index(next[0])
             if next_pos >= i:
                 print("Loops are present")
+                return
             string += f"&temp[{next[0]}][{next[2]}], "
 
         for j in range(0, gate_descr["outw"]):
