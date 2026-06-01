@@ -58,6 +58,7 @@ module double_multiplier(
 
   always @(posedge clk)
   begin
+     //$display("State is %d", state);
 
     case(state)
 
