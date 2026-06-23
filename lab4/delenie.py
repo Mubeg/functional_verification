@@ -1,7 +1,8 @@
 import dd
 from dd.cudd import BDD
+import tqdm
 
-def ROBDD_div(n: int) -> dd.cudd.Function:
+def ROBDD_div(n: int): #-> dd.cudd.Function:
     bdd = BDD()
     bdd.configure(reordering=False)
     
@@ -9,69 +10,76 @@ def ROBDD_div(n: int) -> dd.cudd.Function:
     x_vars = [f'x{i}' for i in range(n)]
     y_vars = [f'y{i}' for i in range(n)]
     z_vars = [f'z{i}' for i in range(n)]
+
+    list = x_vars + y_vars + z_vars
     
-    bdd.declare(x_vars + y_vars + z_vars)
+    bdd.declare(*list)
     
     # Формируем условие корректности деления
     # z = x // y <=> x = y * z + r, где 0 <= r < y
-    formula = []
+    formula = bdd.false
     
     # Перебираем все возможные значения x, y, z
-    for x in range(2**n):
+    for x in tqdm.tqdm(range(2**n)):
         for y in range(1, 2**n):  # y не может быть 0
             z = x // y
             r = x % y
             
             # Формируем условие для текущего набора
-            term = bdd.cube({
-                **{f'x{i}': (x >> i) & 1 for i in range(n)},
-                **{f'y{i}': (y >> i) & 1 for i in range(n)},
-                **{f'z{i}': (z >> i) & 1 for i in range(n)}
-            })
-            formula.append(term)
+            some_dict = {
+                **{f'x{i}': bool((x >> i) & 1) for i in range(n)},
+                **{f'y{i}': bool((y >> i) & 1) for i in range(n)},
+                **{f'z{i}': bool((z >> i) & 1) for i in range(n)}
+            }
+            #print(some_dict)
+            term = bdd.cube(some_dict)
+            formula |= term
     
-    return bdd.add_expr(' | '.join(map(str, formula)))
+    return (bdd, formula)
 
 
-def calc_div(f: dd.cudd.Function, x: int, y: int) -> int:
-    n = f.node.var_num // 3  # Предполагаем равное количество бит для x, y, z
+def calc_div(f, x: int, y: int, n: int) -> int:
     
-    # Создаем подстановку значений
     substitution = {
-        f'x{i}': (x >> i) & 1 for i in range(n)
-    }
-    substitution.update({
-        f'y{i}': (y >> i) & 1 for i in range(n)
-    })
+                **{f'x{i}': bool((x >> i) & 1) for i in range(n)},
+                **{f'y{i}': bool((y >> i) & 1) for i in range(n)}
+            }
+    bdd = f.bdd
     
-    # Применяем подстановку
-    result = f.let(substitution)
-    
-    # Извлекаем значение z
-    z_bits = [result.var(f'z{i}') for i in range(n)]
-    return sum(bit << i for i, bit in enumerate(z_bits))
+    result = bdd.let(substitution, f)
 
-def test_division():
-    n = 4  # разрядность
-    bdd = BDD()
-    f = ROBDD_div(n)
+    z_val = 0
+    for i in range(n):
+        temp = bdd.let({f'z{i}': False}, result)
+        if temp != bdd.false:
+            result = temp
+        else:
+            z_val |= (1 << i)
+            result = bdd.let({f'z{i}': True}, result)
+    return z_val
+
+def test_division(n):
+    bdd, f = ROBDD_div(n)
+    success = True
     
-    for x in range(2**n):
+    for x in tqdm.tqdm(range(2**n)):
         for y in range(1, 2**n):  # избегаем деления на 0
             expected = x // y
-            computed = calc_div(f, x, y)
-            assert expected == computed, f"Ошибка при x={x}, y={y}"
-    
-    print("Все тесты пройдены!")
+            computed = calc_div(f, x, y, n)
+            if(expected != computed):
+                success = False
+                print(f"Error x={x}, y={y}: expected {expected}, got {computed}")
+    if(success):
+        print("Все тесты пройдены!")
 
-def analyze_size():
-    for n in range(1, 6):
-        bdd = BDD()
-        f = ROBDD_div(n)
+def analyze_size(max_n):
+    for n in range(1, max_n):
+        bdd, f = ROBDD_div(n)
         stats = bdd.statistics()
+        #print(stats)
         print(f"Разрядность {n}:")
-        print(f"  Узлов: {stats['nodes']}")
-        print(f"  Максимальная ширина: {stats['max_width']}")
+        print(f"  Узлов: {stats['n_nodes']}")
+        print(f"  Максимальная ширина: {stats['peak_nodes']}")
 
-analyze_size()
-test_division()
+analyze_size(10)
+test_division(10)
