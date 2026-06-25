@@ -37,25 +37,25 @@ void calc(const uint8_t in [], uint8_t out []){
 
 	uint8_t temp [9][1];
 
-	temp[0][0] = in[0];
-	temp[1][0] = in[1];
-	temp[2][0] = in[2];
-	temp[3][0] = in[3];
+	temp[0][0] = in[0]&(0x1 << 0) ? 1 : 0;
+	temp[1][0] = in[0]&(0x1 << 1) ? 1 : 0;
+	temp[2][0] = in[0]&(0x1 << 2) ? 1 : 0;
+	temp[3][0] = in[0]&(0x1 << 3) ? 1 : 0;
 	__and(&temp[0][0], &temp[1][0], &temp[4][0]);
 	__nor(&temp[4][0], &temp[2][0], &temp[5][0]);
 	__xor(&temp[4][0], &temp[5][0], &temp[6][0]);
 	__and(&temp[6][0], &temp[5][0], &temp[8][0]);
 	__nand(&temp[8][0], &temp[3][0], &temp[7][0]);
 
-	out[0] = temp[6][0];
-	out[1] = temp[7][0];
+	out[0] = temp[6][0] ? out[0] | (0x1 << 0) : out[0] & ~(0x1 << 0) ;
+	out[0] = temp[7][0] ? out[0] | (0x1 << 1) : out[0] & ~(0x1 << 1) ;
 
 }
 
-int test_entry_point(void){
+int main(void){
 
-	uint8_t out[2];
-	uint8_t in[4] = {1, 1, 1, 1};
+	uint8_t out[1] = {0};
+	uint8_t in[1] = {0x0};
 
 	calc(in, out);
 

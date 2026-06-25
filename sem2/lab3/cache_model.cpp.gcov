@@ -1,0 +1,335 @@
+        -:    0:Source:cache_model.cpp
+        -:    0:Graph:a-cache_model.gcno
+        -:    0:Data:a-cache_model.gcda
+        -:    0:Runs:1
+        -:    1:#include <stdint.h>
+        -:    2:
+        -:    3:struct bit_7{
+        -:    4:	unsigned char value; // 7 bit
+        -:    5:};
+        -:    6:
+        -:    7:struct bit_3{
+        -:    8:	unsigned char value; // 3 bit
+        -:    9:};
+        -:   10:
+        -:   11:struct bit_2{
+        -:   12:	unsigned char value; // 2 bit
+        -:   13:};
+        -:   14:
+        -:   15:struct bit_10{
+        -:   16:	int16_t value; // 10 bit
+        -:   17:};
+        -:   18:
+        -:   19:struct bit_35{
+        -:   20:	int64_t value; // 35 bit
+        -:   21:};
+        -:   22:
+        -:   23:struct Tag{
+       72:   24:	bool operator== (const Tag & other) const{
+       72:   25:		return value.value == other.value.value;
+        -:   26:	}
+        -:   27:	bit_35 value;
+        -:   28:}; //35 bit
+        -:   29:
+        -:   30:struct Address{
+        -:   31:	Tag tag;
+        -:   32:	bit_10 index;
+        -:   33:	bit_7 offest;
+        -:   34:}; // 52 bit
+        -:   35:
+        -:   36:struct Cache_string{
+        -:   37:	bool valid;
+        -:   38:	Tag saved_tag;
+        -:   39:	unsigned char data;
+        -:   40:	bit_3 life_time; // 3 bit
+        -:   41:	bool modified;
+        -:   42:};
+        -:   43:
+        -:   44:struct Inner_state{
+        -:   45:	Cache_string S[8] = {}; //S0 === all zeros
+        -:   46:};
+        -:   47:
+        -:   48:enum class Opcode : uint8_t{
+        -:   49:	Noop = 0,
+        -:   50:	Read,
+        -:   51:	Write,
+        -:   52:	Snoop
+        -:   53:};
+        -:   54:
+        -:   55:struct Input_data{
+        -:   56:	Opcode opcode;
+        -:   57:	Tag tag;
+        -:   58:	unsigned char data;
+        -:   59:};
+        -:   60:
+        -:   61:struct Output_data{
+        -:   62:	bool valid;
+        -:   63:	Tag tag;
+        -:   64:	unsigned char data;
+        -:   65:};
+        -:   66:
+        -:   67:struct Cache{
+        -:   68:	Inner_state states[1024];
+        -:   69:};
+        -:   70:
+        -:   71:
+        -:   72:static unsigned char ddr5[1024] = {0};
+        -:   73:int current_index = 0;
+        -:   74:
+       10:   75:int64_t merge(Tag tag, int index){
+       10:   76:	return tag.value.value + (index << 35);
+        -:   77:}
+        -:   78:
+        9:   79:unsigned char memory(Tag tag){
+        9:   80:	return ddr5[merge(tag, current_index)%1024];
+        -:   81:}
+        -:   82:
+        1:   83:void memory(Tag tag, unsigned char new_data){
+        1:   84:	 ddr5[merge(tag, current_index)%1024] = new_data;
+        1:   85:}
+        -:   86:
+       10:   87:void state_change(Inner_state & state, const Input_data &input){
+        -:   88:
+       10:   89:	switch (input.opcode)
+        -:   90:	{
+        9:   91:		case Opcode::Read:
+        -:   92:			{
+        9:   93:				int hit_n = -1;
+        9:   94:				int last_free_n = -1;
+       81:   95:				for(int i = 0; i < sizeof(state.S)/sizeof(Cache_string); i++){
+       72:   96:					auto & string = state.S[i];
+       72:   97:					if(!string.valid){
+       36:   98:						last_free_n = i;
+       36:   99:						continue;
+        -:  100:					}
+       36:  101:					if(!(string.saved_tag == input.tag)){
+       36:  102:						continue;
+        -:  103:					}
+    #####:  104:					hit_n = i;
+    #####:  105:					break;
+        -:  106:				}
+        -:  107:
+        9:  108:				if(hit_n != -1){ // if hit
+    #####:  109:					for(int i = 0; i < sizeof(state.S)/sizeof(Cache_string); i++){
+    #####:  110:						auto & string = state.S[i];
+    #####:  111:						if(i == hit_n){
+    #####:  112:							string.life_time.value = 0;
+        -:  113:						}
+        -:  114:						else{
+    #####:  115:							string.life_time.value++; // Least recently read counter increase
+        -:  116:						}
+        -:  117:					}
+        -:  118:				}
+        9:  119:				else if(last_free_n != -1){ // if miss, but cache not full
+        8:  120:					auto & free_string = state.S[last_free_n];
+        8:  121:					free_string.data = memory(input.tag);
+        8:  122:					free_string.life_time.value = 0;
+        8:  123:					free_string.saved_tag = input.tag;
+        8:  124:					free_string.modified = false;
+        8:  125:					free_string.valid = true;
+        -:  126:
+       72:  127:					for(int i = 0; i < sizeof(state.S)/sizeof(Cache_string); i++){
+       64:  128:						auto & string = state.S[i];
+       64:  129:						if(i != last_free_n){
+       56:  130:							string.life_time.value++; // Least recently read counter increase
+        -:  131:						}
+        -:  132:					}
+        -:  133:				}
+        -:  134:				else{// if miss, and have to make free
+        1:  135:					int lrr_n = -1;
+        1:  136:					int lrr_value = -1;
+        9:  137:					for(int i = 0; i < sizeof(state.S)/sizeof(Cache_string); i++){
+        8:  138:						auto & string = state.S[i];
+        8:  139:						if(lrr_value < string.life_time.value){
+        8:  140:							lrr_n = i;
+        8:  141:							lrr_value = string.life_time.value;
+        -:  142:						}
+        -:  143:					}
+        -:  144:
+        1:  145:					auto & writeback_string = state.S[lrr_n];
+        1:  146:					if(writeback_string.modified){
+    #####:  147:						memory(writeback_string.saved_tag, writeback_string.data);
+        -:  148:					}
+        1:  149:					writeback_string.data = memory(input.tag);
+        1:  150:					writeback_string.life_time.value = 0;
+        1:  151:					writeback_string.saved_tag = input.tag;
+        1:  152:					writeback_string.modified = false;
+        1:  153:					writeback_string.valid = true;
+        -:  154:
+        9:  155:					for(int i = 0; i < sizeof(state.S)/sizeof(Cache_string); i++){
+        8:  156:						auto & string = state.S[i];
+        8:  157:						if(i != lrr_n){
+        7:  158:							string.life_time.value++; // Least recently read counter increase
+        -:  159:						}
+        -:  160:					}
+        -:  161:				}
+        -:  162:			}
+        9:  163:			break;
+        1:  164:		case Opcode::Write:
+        -:  165:			{
+        1:  166:				int hit_n = -1;
+        9:  167:				for(int i = 0; i < sizeof(state.S)/sizeof(Cache_string); i++){
+        8:  168:					auto & string = state.S[i];
+        8:  169:					if(!string.valid){
+        8:  170:						continue;
+        -:  171:					}
+    #####:  172:					if(!(string.saved_tag == input.tag)){
+    #####:  173:						continue;
+        -:  174:					}
+    #####:  175:					hit_n = i;
+    #####:  176:					break;
+        -:  177:				}
+        -:  178:
+        1:  179:				if(hit_n != -1){ // if hit
+    #####:  180:					auto & hit_string = state.S[hit_n];
+    #####:  181:					hit_string.data = input.data;
+    #####:  182:					hit_string.modified = true;
+        -:  183:				}
+        -:  184:				else{ // if miss
+        1:  185:					memory(input.tag, input.data);
+        -:  186:				}	
+        -:  187:			}
+        1:  188:			break;
+    #####:  189:		case Opcode::Snoop:
+    #####:  190:			for(int i = 0; i < sizeof(state.S)/sizeof(Cache_string); i++){
+    #####:  191:				auto & string = state.S[i];
+    #####:  192:				if(!string.valid){
+    #####:  193:					continue;
+        -:  194:				}
+    #####:  195:				if(!(string.saved_tag == input.tag)){
+    #####:  196:					continue;
+        -:  197:				}
+    #####:  198:				if(string.modified){ //writeback
+    #####:  199:					memory(input.tag, string.data); 
+        -:  200:				}
+    #####:  201:				string.valid = false; //invalidate
+        -:  202:			}
+    #####:  203:			break;
+    #####:  204:		default:
+    #####:  205:			break;
+        -:  206:	}
+       10:  207:}
+        -:  208:
+       10:  209:Output_data output(const Inner_state & state, const Input_data &input){
+        -:  210:
+       10:  211:	Output_data res = {}; // valid = false
+        -:  212:
+       10:  213:	switch (input.opcode)
+        -:  214:	{
+        9:  215:		case Opcode::Read:
+       81:  216:			for(int i = 0; i < sizeof(state.S)/sizeof(Cache_string); i++){
+       72:  217:				auto & string = state.S[i];
+       72:  218:				if(!string.valid){
+       36:  219:					continue;
+        -:  220:				}
+       36:  221:				if(!(string.saved_tag == input.tag)){
+       36:  222:					continue;
+        -:  223:				}
+    #####:  224:				res.valid = true;
+    #####:  225:				res.tag = input.tag;
+    #####:  226:				res.data = string.data;
+    #####:  227:				break;
+        -:  228:			}
+        9:  229:			break;
+        1:  230:		case Opcode::Write: //do nothing
+        1:  231:			break;
+    #####:  232:		case Opcode::Snoop: //do nothing
+    #####:  233:			break;
+    #####:  234:		default:
+    #####:  235:			break;
+        -:  236:	}
+        -:  237:
+       10:  238:	return res;
+        -:  239:}
+        -:  240:
+        1:  241:int test_write_to_mem_minimal(){
+        -:  242:
+        -:  243:	//Note: write to memory occures with first instruction since "политика заведения - промах по чтению"
+        1:  244:	Input_data input[1] = {
+        -:  245:		{
+        -:  246:			Opcode::Write, //Opcode
+        -:  247:			{{0xBEDA}}, //Tag
+        -:  248:			0xf //Data
+        -:  249:		}
+        -:  250:	};
+        1:  251:	Cache cache = {};
+        1:  252:	const int index = 112;
+        1:  253:	auto & state = cache.states[index];
+        1:  254:	current_index = index;
+        2:  255:	for(int i = 0; i < sizeof(input)/sizeof(Input_data); i++){
+        1:  256:		auto output_data = output(state, input[i]);
+        1:  257:		state_change(state, input[i]);
+        -:  258:	}
+        1:  259:	return 0;
+        -:  260:}
+        -:  261:
+        1:  262:int test_free_from_cache(){
+        -:  263:
+        1:  264:	Input_data input[9] = {
+        -:  265:		{
+        -:  266:			Opcode::Read, //Opcode
+        -:  267:			{{0x0DED}}, //Tag
+        -:  268:			0x0 //Data
+        -:  269:		},
+        -:  270:		{
+        -:  271:			Opcode::Read, //Opcode
+        -:  272:			{{0x1DED}}, //Tag
+        -:  273:			0x0 //Data
+        -:  274:		},
+        -:  275:		{
+        -:  276:			Opcode::Read, //Opcode
+        -:  277:			{{0x2DED}}, //Tag
+        -:  278:			0x0 //Data
+        -:  279:		},
+        -:  280:		{
+        -:  281:			Opcode::Read, //Opcode
+        -:  282:			{{0x3DED}}, //Tag
+        -:  283:			0x0 //Data
+        -:  284:		},
+        -:  285:		{
+        -:  286:			Opcode::Read, //Opcode
+        -:  287:			{{0x4DED}}, //Tag
+        -:  288:			0x0 //Data
+        -:  289:		},
+        -:  290:		{
+        -:  291:			Opcode::Read, //Opcode
+        -:  292:			{{0x5DED}}, //Tag
+        -:  293:			0x0 //Data
+        -:  294:		},
+        -:  295:		{
+        -:  296:			Opcode::Read, //Opcode
+        -:  297:			{{0x6DED}}, //Tag
+        -:  298:			0x0 //Data
+        -:  299:		},
+        -:  300:		{
+        -:  301:			Opcode::Read, //Opcode
+        -:  302:			{{0x7DED}}, //Tag
+        -:  303:			0x0 //Data
+        -:  304:		},
+        -:  305:		{
+        -:  306:			Opcode::Read, //Opcode
+        -:  307:			{{0xBEDA}}, //Tag
+        -:  308:			0x0 //Data
+        -:  309:		}
+        -:  310:	};
+        -:  311:	//Note: 8 reads for fill of cache and 9th will trigger read with free of one cache string
+        1:  312:	Cache cache = {};
+        1:  313:	const int index = 112;
+        1:  314:	current_index = index;
+        1:  315:	auto & state = cache.states[index];
+       10:  316:	for(int i = 0; i < sizeof(input)/sizeof(Input_data); i++){
+        9:  317:		auto output_data = output(state, input[i]);
+        -:  318:		// do stuff with output
+        9:  319:		state_change(state, input[i]);
+        -:  320:	}
+        1:  321:	return 0;
+        -:  322:}
+        -:  323:
+        -:  324:
+        1:  325:int main(){
+        -:  326:
+        1:  327:	test_write_to_mem_minimal();
+        1:  328:	test_free_from_cache();
+        1:  329:	return 0;
+        -:  330:}
+        -:  331:

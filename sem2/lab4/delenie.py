@@ -1,5 +1,5 @@
 import dd
-from dd.cudd import BDD
+from dd.autoref import BDD
 import tqdm
 import matplotlib.pyplot as plt
 
@@ -93,6 +93,7 @@ def analyze_size(max_n):
     y_data_width = []
     for n in range(1, max_n):
         bdd, f = ROBDD_div(n)
+        print(bdd.vars)
         stats = bdd.statistics()
         #print(stats)
         print(f"Bits {n}:")
