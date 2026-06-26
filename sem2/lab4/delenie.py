@@ -3,15 +3,21 @@ from dd.cudd import BDD
 import tqdm
 import matplotlib.pyplot as plt
 
-def ROBDD_div(n: int) -> (BDD, dd.cudd.Function):
+def ROBDD_div(n: int, order: str = "grouped") -> (BDD, dd.cudd.Function):
     bdd = BDD()
     bdd.configure(reordering=False)
     
     x_vars = [f'x{i}' for i in range(n)]
     y_vars = [f'y{i}' for i in range(n)]
     z_vars = [f'z{i}' for i in range(n)]
-
-    list = x_vars + y_vars + z_vars
+    list = []
+    if order == "grouped":
+        list = x_vars + y_vars + z_vars
+    else:
+        for i in range(n):
+            list.append(x_vars[i])
+            list.append(y_vars[i])
+        list += z_vars
     
     bdd.declare(*list)
     
@@ -55,6 +61,7 @@ def calc_div(f, x: int, y: int, n: int) -> int:
 
 def test_division(n):
     bdd, f = ROBDD_div(n)
+    bdd2, g = ROBDD_div(n, "interleaved")
     success = True
     
     for x in tqdm.tqdm(range(2**n)):
@@ -64,8 +71,16 @@ def test_division(n):
             if(expected != computed):
                 success = False
                 print(f"Error x={x}, y={y}: expected {expected}, got {computed}")
+    for x in tqdm.tqdm(range(2**n)):
+        for y in range(1, 2**n): 
+            expected = x // y
+            computed = calc_div(g, x, y, n)
+            if(expected != computed):
+                success = False
+                print(f"Error x={x}, y={y}: expected {expected}, got {computed}")
     if(success):
         print("Tests success")
+        
 
 def res_in_I_division(a: int, b: int, n: int) -> dd.cudd.Function:
     bdd, f = ROBDD_div(n)
@@ -122,12 +137,16 @@ def analyze_size(max_n):
     y_data_width = []
     for n in range(1, max_n):
         bdd, f = ROBDD_div(n)
+        bdd2, g = ROBDD_div(n, "interleaved")
         #print(bdd.vars)
         stats = bdd.statistics()
         print(stats)
-        print(f"Bits {n}:")
+        print(f"Bits {n} groped:")
         print(f"  Nodes: {len(bdd)}")
         print(f"  Max width: {robdd_width(bdd, f)}")
+        print(f"Bits {n} interleaved:")
+        print(f"  Nodes: {len(bdd2)}")
+        print(f"  Max width: {robdd_width(bdd2, g)}")
         x_data.append(n)
         y_data_nodes.append(math.log2(len(bdd)))
         y_data_width.append(math.log2(robdd_width(bdd, f)))
@@ -139,6 +158,7 @@ def analyze_size(max_n):
 def test_har(a, b, n):
     har = res_in_I_division(a, b, n)
     bdd, f = ROBDD_div(n)
+
     success = True
     for x in tqdm.tqdm(range(2**n)):
         for y in range(1, 2**n):
