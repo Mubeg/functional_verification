@@ -3,7 +3,7 @@ from dd.cudd import BDD
 import tqdm
 import matplotlib.pyplot as plt
 
-def ROBDD_div(n: int) -> dd.cudd.Function:
+def ROBDD_div(n: int) -> (BDD, dd.cudd.Function):
     bdd = BDD()
     bdd.configure(reordering=False)
     
@@ -16,7 +16,6 @@ def ROBDD_div(n: int) -> dd.cudd.Function:
     bdd.declare(*list)
     
     formula = bdd.false
-    counter = 0
     
     for x in tqdm.tqdm(range(2**n)):
         for y in range(1, 2**n):
@@ -30,7 +29,6 @@ def ROBDD_div(n: int) -> dd.cudd.Function:
             }
             term = bdd.cube(some_dict)
             formula |= term
-            counter += 1
     
     return (bdd, formula)
 
@@ -84,6 +82,37 @@ def res_in_I_division(a: int, b: int, n: int) -> dd.cudd.Function:
     result = bdd.exist([f'z{i}' for i in range(n)], f & condition)
     return result
 
+from collections import defaultdict, deque
+
+def robdd_width(bdd, f):
+
+    visited = set()
+
+    level_nodes = defaultdict(set)
+
+    q = deque([f])
+
+    while len(q):
+
+        node = q.popleft()
+
+        if node in visited:
+            continue
+
+        visited.add(node)
+
+        if node == bdd.true or node == bdd.false:
+            continue
+
+        level = bdd.level_of_var(node.var)
+
+        level_nodes[level].add(node)
+
+        q.append(node.low)
+        q.append(node.high)
+
+    return max(len(v) for v in level_nodes.values())
+
 import math
 import numpy as np
 
@@ -95,13 +124,13 @@ def analyze_size(max_n):
         bdd, f = ROBDD_div(n)
         #print(bdd.vars)
         stats = bdd.statistics()
-        #print(stats)
+        print(stats)
         print(f"Bits {n}:")
-        print(f"  Nodes: {stats['n_nodes']}")
-        print(f"  Peak nodes: {stats['peak_nodes']}")
+        print(f"  Nodes: {len(bdd)}")
+        print(f"  Max width: {robdd_width(bdd, f)}")
         x_data.append(n)
-        y_data_nodes.append(math.log2(stats['n_nodes']))
-        y_data_width.append(math.log2(stats['peak_nodes']))
+        y_data_nodes.append(math.log2(len(bdd)))
+        y_data_width.append(math.log2(robdd_width(bdd, f)))
     plt.plot(x_data, y_data_nodes)
     plt.plot(x_data, y_data_width)
     plt.grid()
@@ -128,9 +157,9 @@ def test_har(a, b, n):
     if(success):
         print("Haracteristics function is correct")
 
-n = 10
+n = 9
 a = 1
 b = 2
-analyze_size(n)
+analyze_size(n+3)
 test_division(n)
 test_har(a, b, n)
